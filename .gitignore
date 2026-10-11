@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environment
+.venv/
+
+
+# Model checkpoints (Stage 8+)
+*.pt
+*.pth
+checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
