@@ -118,26 +118,3 @@ def get_loaders(batch_size=128):
         DataLoader(NumberDataset(test), batch_size, collate_fn=collate),
     )
 
-# ---------- 4. Sanity checks ----------
-if __name__ == "__main__":
-    for n in [0, 7, 15, 40, 100, 4072, 999_999]:
-        print(f"{n:>7} -> {number_to_words(n)}")
-
-    print(f"\nsrc vocab ({len(SRC_VOCAB)}): {SRC_VOCAB.itos}")
-    print(f"tgt vocab ({len(TGT_VOCAB)}): {TGT_VOCAB.itos}")
-
-    train, val, test = make_splits()
-    assert not (set(train) & set(val) or set(train) & set(test) or set(val) & set(test))
-    print(f"\nsplits: train={len(train)} val={len(val)} test={len(test)} (disjoint)")
-
-    src, tgt = NumberDataset([4072])[0]
-    print(f"\n4072 src ids: {src.tolist()}")
-    print(f"4072 tgt ids: {tgt.tolist()}")
-    print(f"decoder input (shifted right): {TGT_VOCAB.itos and [TGT_VOCAB.itos[i] for i in tgt[:-1]]}")
-    print(f"labels:                        {[TGT_VOCAB.itos[i] for i in tgt[1:]]}")
-    print(f"round trip: {TGT_VOCAB.decode(tgt.tolist())}")
-
-    train_loader, _, _ = get_loaders(batch_size=4)
-    src_b, tgt_b = next(iter(train_loader))
-    print(f"\nbatch src {tuple(src_b.shape)}:\n{src_b}")
-    print(f"batch tgt {tuple(tgt_b.shape)}:\n{tgt_b}")
