@@ -1,0 +1,28 @@
+# Stage 12: what "docker build ." must NOT send to Docker (the build context).
+# Docker never reads .gitignore, only this file.
+
+# Windows venv with CUDA torch: several GB, useless inside Linux
+.venv/
+
+# history and editor/tool folders
+.git/
+.gitignore
+.claude/
+.vscode/
+
+# caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# not needed to serve
+tests/
+attention_maps/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# checkpoints: skip everything in the folder EXCEPT best.pt ("!" = let this one back in)
+checkpoints/*
+!checkpoints/best.pt
