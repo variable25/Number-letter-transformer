@@ -1,0 +1,16 @@
+# Stage 12: only what SERVING needs. Tests (pytest, httpx2) and plots (matplotlib) stay in .venv.
+# Versions copied from your .venv, so the image behaves exactly like your laptop.
+
+# Ask pip to also look at PyTorch's CPU-only shelf (no CUDA = hundreds of MB, not GB)
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# the brain: Transformer + best.pt
+torch==2.14.1+cpu
+
+# the menu (routes) and its order checker
+fastapi==0.146.0
+starlette==1.8.0
+pydantic==2.14.1
+
+# the waiter that runs app:app
+uvicorn==0.54.0
