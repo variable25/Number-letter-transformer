@@ -1,0 +1,7 @@
+# Test-only packages: CI and your laptop, never the Docker image.
+# CI installs this file together with requirements.txt.
+# Versions are the ones in your .venv, so CI tests the same thing you test.
+pytest==9.1.1
+httpx==0.28.1
+httpx2==2.13.1
+matplotlib==3.11.2
