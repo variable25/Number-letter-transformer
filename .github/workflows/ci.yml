@@ -1,6 +1,8 @@
 # Stage 14: CI. On every push / pull request to main, a fresh Ubuntu runner
 # installs our packages and runs the whole pytest suite.
 # Red X = a test failed -> branch protection blocks the merge.
+# Stage 15: CD. After a green test on a push to main, the deploy job builds
+# the image, pushes it, deploys it to Cloud Run and smoke-tests the live URL.
 
 name: CI
 
@@ -12,12 +14,13 @@ on:
   workflow_dispatch:          # adds a "Run workflow" button in the Actions tab
 
 permissions:
-  contents: read              # the test job only reads the repo, nothing more
+  contents: read              # default for every job: only read the repo
 
 concurrency:
   # push twice quickly to the same PR -> cancel the older run, keep the newest
+  # pushes to main are never cancelled, so a deploy can't be killed halfway
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -47,3 +50,71 @@ jobs:
       - name: Run pytest
         # -v = one line per test, -rs = print the reason for every skip at the end
         run: python -m pytest -v -rs
+
+  deploy:
+    name: deploy
+    needs: test               # only after the test job is green
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      id-token: write         # lets the runner ask GitHub for its signed ID card (WIF)
+
+    concurrency:
+      group: deploy-number-words
+      cancel-in-progress: false   # deploys wait in line, never cancelled
+
+    env:
+      REGION: europe-west3
+      IMAGE: europe-west3-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/number-words-repo/number-words:${{ github.sha }}
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Log in to Google Cloud (WIF, no JSON key)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Let docker push to Artifact Registry
+        run: gcloud auth configure-docker europe-west3-docker.pkg.dev --quiet
+
+      - name: Download best.pt from the private bucket
+        # the checkout has no best.pt (gitignored), but the Dockerfile COPYs it
+        run: |
+          mkdir -p checkpoints
+          gcloud storage cp "gs://${{ vars.GCS_BUCKET }}/best.pt" checkpoints/best.pt
+
+      - name: Build the image (tag = commit SHA)
+        run: docker build -t "$IMAGE" .
+
+      - name: Push the image
+        run: docker push "$IMAGE"
+
+      - name: Deploy a new Cloud Run revision
+        # only the image changes; memory, cpu, scaling, env and public access are kept
+        run: gcloud run deploy number-words --image "$IMAGE" --region "$REGION" --quiet
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pytest only
+        run: python -m pip install pytest==9.1.1
+
+      - name: Smoke-test the live service
+        run: |
+          export SERVICE_URL="$(gcloud run services describe number-words --region "$REGION" --format='value(status.url)')"
+          test -n "$SERVICE_URL"            # empty URL -> fail here instead of silently skipping
+          echo "Testing $SERVICE_URL"
+          python -m pytest tests/test_live.py -v -rs
